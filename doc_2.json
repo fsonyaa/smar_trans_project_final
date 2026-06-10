@@ -1,0 +1,22 @@
+{
+  "fields": {
+    "uid": {
+      "stringValue": "vOhtCMPzA3UDFxHzdSuNHLC1aMt1"
+    },
+    "email": {
+      "stringValue": "soniafatnassi46@gmail.com"
+    },
+    "nom": {
+      "stringValue": "Sonia"
+    },
+    "role": {
+      "stringValue": "admin"
+    },
+    "telephone": {
+      "stringValue": ""
+    },
+    "adresse": {
+      "stringValue": ""
+    }
+  }
+}

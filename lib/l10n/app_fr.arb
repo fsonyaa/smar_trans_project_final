@@ -1,0 +1,19 @@
+{
+  "@@locale": "fr",
+  "appTitle": "Smart Trans",
+  "login": "Connexion",
+  "email": "Email",
+  "password": "Mot de passe",
+  "forgotPassword": "Mot de passe oublié ?",
+  "language": "Langue",
+  "welcome": "Bienvenue",
+  "logout": "Déconnexion",
+  "noAccount": "Pas de compte ? Créer un compte",
+  "resetPassword": "Réinitialisation",
+  "enterEmailCode": "Entrez votre email pour recevoir un code de vérification",
+  "sendCode": "Envoyer le code",
+  "verifyCode": "Vérifier le code",
+  "newPassword": "Nouveau mot de passe",
+  "confirmPassword": "Confirmer le mot de passe",
+  "changePassword": "Changer le mot de passe"
+}

@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "528223673187",
+    "project_id": "smart-trans-dc828",
+    "storage_bucket": "smart-trans-dc828.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:528223673187:android:bbbcf7f1fc333a78dc5156",
+        "android_client_info": {
+          "package_name": "com.example.smart_trans_v2"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "528223673187-89cmjk3eoi6si51vd7jg5q7qbih6vji1.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBRo-Kb4VsTnyfXGIcn0o-26bzD8JbZreA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "528223673187-89cmjk3eoi6si51vd7jg5q7qbih6vji1.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

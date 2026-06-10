@@ -1,0 +1,22 @@
+{
+  "@@locale": "en",
+  "appTitle": "Smart Trans",
+  "@appTitle": {
+    "description": "The title of the application"
+  },
+  "login": "Login",
+  "email": "Email",
+  "password": "Password",
+  "forgotPassword": "Forgot Password?",
+  "language": "Language",
+  "welcome": "Welcome",
+  "logout": "Logout",
+  "noAccount": "No account? Create one",
+  "resetPassword": "Reset Password",
+  "enterEmailCode": "Enter your email to receive a verification code",
+  "sendCode": "Send Code",
+  "verifyCode": "Verify Code",
+  "newPassword": "New Password",
+  "confirmPassword": "Confirm Password",
+  "changePassword": "Change Password"
+}

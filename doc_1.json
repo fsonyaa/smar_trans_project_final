@@ -1,0 +1,22 @@
+{
+  "fields": {
+    "uid": {
+      "stringValue": "7ozFSpO5bohUwUPuieCP5of7BB92"
+    },
+    "email": {
+      "stringValue": "sonia.fatnassi@enis.tn"
+    },
+    "nom": {
+      "stringValue": "Sonia Fatnassi (Admin)"
+    },
+    "role": {
+      "stringValue": "admin"
+    },
+    "telephone": {
+      "stringValue": ""
+    },
+    "adresse": {
+      "stringValue": ""
+    }
+  }
+}

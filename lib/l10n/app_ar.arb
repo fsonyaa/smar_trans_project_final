@@ -1,0 +1,19 @@
+{
+  "@@locale": "ar",
+  "appTitle": "سمايت ترانس",
+  "login": "تسجيل الدخول",
+  "email": "البريد الإلكتروني",
+  "password": "كلمة المرور",
+  "forgotPassword": "هل نسيت كلمة المرور؟",
+  "language": "اللغة",
+  "welcome": "مرحباً",
+  "logout": "تسجيل الخروج",
+  "noAccount": "ليس لديك حساب؟ إنشاء حساب",
+  "resetPassword": "إعادة تعيين كلمة المرور",
+  "enterEmailCode": "أدخل بريدك الإلكتروني لتلقي رمز التحقق",
+  "sendCode": "إرسال الرمز",
+  "verifyCode": "التحقق من الرمز",
+  "newPassword": "كلمة مرور جديدة",
+  "confirmPassword": "تأكيد كلمة المرور",
+  "changePassword": "تغيير كلمة المرور"
+}
