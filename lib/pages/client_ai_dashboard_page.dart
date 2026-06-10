@@ -21,7 +21,8 @@ class _ClientAiDashboardPageState extends State<ClientAiDashboardPage> {
   Future<void> _loadData() async {
     setState(() => isLoading = true);
     try {
-      final avisList = await FirestoreService.getAllAvis();
+      final allAvis = await FirestoreService.getAllAvis();
+      final avisList = allAvis.where((a) => (a['Category'] ?? '').toString().toLowerCase() == 'chauffeur').toList();
       
       int total = avisList.length;
       int pos = 0, neg = 0, neu = 0;
