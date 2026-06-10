@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
+import 'nlp_service.dart';
 
 /// Service centralisé pour toutes les opérations Firestore (CRUD)
 /// Structure de la base : administrateurs, chauffeurs, clients, utilisateurs,
@@ -484,20 +485,14 @@ class FirestoreService {
     required String commentaire,
     required int note,
   }) async {
-    // Analyse de sentiment simplifiée locale (sans backend Python)
-    String sentiment = 'Neutre';
-    final text = commentaire.toLowerCase();
-    if (text.contains('bien') || text.contains('super') || text.contains('excellent') ||
-        text.contains('parfait') || text.contains('merci') || text.contains('bon') ||
-        text.contains('rapide') || text.contains('propre') || text.contains('ponctuel')) {
-      sentiment = 'Positif';
-    } else if (text.contains('mauvais') || text.contains('nul') || text.contains('horrible') ||
-        text.contains('retard') || text.contains('problème') || text.contains('mal') ||
-        text.contains('sale') || text.contains('lent') || text.contains('dangereux')) {
-      sentiment = 'Négatif';
-    }
-    if (note >= 4) sentiment = 'Positif';
-    if (note <= 2) sentiment = 'Négatif';
+    // ─── Analyse NLP via Flask (avec fallback local automatique) ───
+    final nlp = await NlpService.analyze(commentaire, note);
+    final String sentiment = nlp['label'] as String;         // "Positif" / "Négatif" / "Neutre"
+    final double? sentimentScore = nlp['score'] as double?;  // null si fallback local
+    final String? keywords = nlp['keywords'] as String?;     // mots-clés Flask
+    final String category = nlp['category'] as String? ?? 'General';
+    final String nlpSource = nlp['source'] as String? ?? 'local_fallback';
+    debugPrint('🤖 Avis NLP [$nlpSource] → $sentiment / $category');
 
     // Trouver le chauffeur via le parcours
     String driverUid = '';
@@ -548,6 +543,10 @@ class FirestoreService {
       'Note': note,
       'sentiment': sentiment,
       'Sentiment_label': sentiment,
+      if (sentimentScore != null) 'Sentiment_score': sentimentScore,
+      if (keywords != null) 'Keywords': keywords,
+      'Category': category,
+      'nlp_source': nlpSource,   // 'flask_nlp' ou 'local_fallback'
       'createdAt': FieldValue.serverTimestamp(),
     });
   }

@@ -385,6 +385,42 @@ def test():
         "message": "SMART-TRANS API fonctionne",
         "firebase_connected": db is not None,
         "firebase_error": FIREBASE_ERROR if db is None else "",
+        "nlp_available": HAS_NLP,
+    })
+
+
+# ─────────────────────────────────────────────
+#  ROUTE NLP — Appelée par Flutter pour analyser
+#  un commentaire AVANT de le sauvegarder
+# ─────────────────────────────────────────────
+@app.route("/analyze_sentiment", methods=["POST", "OPTIONS"])
+def analyze_sentiment_route():
+    """Endpoint léger appelé par Flutter pour obtenir le vrai score NLP.
+    Ne sauvegarde rien dans la base — retourne juste l'analyse."""
+    if request.method == "OPTIONS":
+        return respond({"ok": True})
+    data = request.get_json() or {}
+    commentaire = data.get("commentaire", "")
+    note = int(data.get("note", 3))
+
+    score, label, keywords, category, is_risk = analyze_sentiment(commentaire)
+
+    # La note prime sur le sentiment si extrême
+    if note >= 4 and label == "Negatif":
+        label = "Neutre"
+    if note <= 2 and label == "Positif":
+        label = "Neutre"
+
+    # Convertir label interne → label affiché en français
+    label_fr = {"Positif": "Positif", "Negatif": "Négatif", "Neutre": "Neutre"}.get(label, label)
+
+    return respond({
+        "score": score,
+        "label": label_fr,
+        "keywords": keywords,
+        "category": category,
+        "is_risk": is_risk,
+        "nlp_engine": "textblob" if HAS_NLP else "keywords_only",
     })
 
 
