@@ -20,7 +20,7 @@ import 'package:http/http.dart' as http;
 // ⚠️ Si Flask n'est PAS lancé → fallback local automatique, rien ne casse.
 
 const bool _useEmulator = false;                  // ✅ Vrai téléphone
-const String _realDeviceIp = '10.100.224.55';     // ✅ Ton IP WiFi actuelle
+const String _realDeviceIp = '192.168.1.103';     // ✅ Ton IP WiFi actuelle
 
 String get _flaskBase {
   if (kIsWeb) return 'http://localhost:8000';
@@ -88,13 +88,27 @@ class NlpService {
       'lent', 'dangereux', 'impoli', 'agressif', 'panne', 'danger'
     ];
 
+    // Count occurrences of positive and negative keywords
+    int posCount = posWords.where((w) => text.contains(w)).length;
+    int negCount = negWords.where((w) => text.contains(w)).length;
+
     String label = 'Neutre';
-    if (posWords.any((w) => text.contains(w))) label = 'Positif';
-    if (negWords.any((w) => text.contains(w))) label = 'Négatif';
+    if (posCount > negCount) {
+      label = 'Positif';
+    } else if (negCount > posCount) {
+      label = 'Négatif';
+    } else {
+      label = 'Neutre';
+    }
 
     // La note prime toujours
-    if (note >= 4) label = 'Positif';
-    if (note <= 2) label = 'Négatif';
+    if (note >= 4) {
+      label = 'Positif';
+    } else if (note <= 2) {
+      label = 'Négatif';
+    } else {
+      label = 'Neutre';
+    }
 
     // Catégorie simple
     String category = 'General';

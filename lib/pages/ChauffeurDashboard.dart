@@ -37,6 +37,9 @@ class _ChauffeurDashboardState extends State<ChauffeurDashboard> {
       final uid = CurrentUser.uid;
       
       final asg = await FirestoreService.getMyAssignments(uid);
+      // Sort assignments by departure time ascending
+      asg.sort((a, b) => (a['Heure_depart'] ?? '').toString().compareTo((b['Heure_depart'] ?? '').toString()));
+      
       final rev = await FirestoreService.getDriverReviews(uid);
       final stats = await FirestoreService.getDriverStats(uid);
 

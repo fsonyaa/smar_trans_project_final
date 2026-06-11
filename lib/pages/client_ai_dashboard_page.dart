@@ -37,10 +37,18 @@ class _ClientAiDashboardPageState extends State<ClientAiDashboardPage> {
 
       for (var a in avisList) {
         String sentiment = a['Sentiment_label'] ?? 'Neutre';
-        if (sentiment == 'Positif') { pos++; sumScore += 1.0; }
-        else if (sentiment == 'Négatif') { neg++; sumScore += -1.0; }
+        if (sentiment == 'Positif') { pos++; }
+        else if (sentiment == 'Négatif') { neg++; }
         else { neu++; }
         sumNotes += (a['Note'] ?? 0).toDouble();
+
+        double scoreVal = 0.0;
+        if (a['Sentiment_score'] != null) {
+          scoreVal = (a['Sentiment_score'] as num).toDouble();
+        } else {
+          scoreVal = sentiment == 'Positif' ? 1.0 : (sentiment == 'Négatif' ? -1.0 : 0.0);
+        }
+        sumScore += scoreVal;
 
         // Keywords extraction
         final comment = (a['Commentaire'] ?? '').toString().toLowerCase();
@@ -58,7 +66,7 @@ class _ClientAiDashboardPageState extends State<ClientAiDashboardPage> {
             driverStats[dId] = {'nb_avis': 0, 'sum_score': 0.0};
           }
           driverStats[dId]!['nb_avis'] += 1;
-          driverStats[dId]!['sum_score'] += (sentiment == 'Positif' ? 1.0 : (sentiment == 'Négatif' ? -1.0 : 0.0));
+          driverStats[dId]!['sum_score'] += scoreVal;
         }
       }
 

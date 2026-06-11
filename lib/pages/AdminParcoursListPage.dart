@@ -19,11 +19,11 @@ class _AdminParcoursListPageState extends State<AdminParcoursListPage> {
     super.initState();
     fetchData();
   }
-
   Future<void> fetchData() async {
     setState(() => isLoading = true);
     try {
       final pList = await FirestoreService.getAllParcours();
+      pList.sort((a, b) => (a['Heure_depart'] ?? '').toString().compareTo((b['Heure_depart'] ?? '').toString()));
       final lList = await FirestoreService.getAllLignes();
       if (mounted) {
         setState(() {

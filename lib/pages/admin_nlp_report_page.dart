@@ -36,9 +36,17 @@ class _AdminNlpReportPageState extends State<AdminNlpReportPage> {
       
       for (var a in avisList) {
         String sentiment = a['Sentiment_label'] ?? 'Neutre';
-        if (sentiment == 'Positif') { pos++; sumScore += 1.0; }
-        else if (sentiment == 'Négatif') { neg++; sumScore += -1.0; }
+        if (sentiment == 'Positif') { pos++; }
+        else if (sentiment == 'Négatif') { neg++; }
         else { neu++; }
+
+        double scoreVal = 0.0;
+        if (a['Sentiment_score'] != null) {
+          scoreVal = (a['Sentiment_score'] as num).toDouble();
+        } else {
+          scoreVal = sentiment == 'Positif' ? 1.0 : (sentiment == 'Négatif' ? -1.0 : 0.0);
+        }
+        sumScore += scoreVal;
 
         // Words
         final words = (a['Commentaire'] ?? '').toString().toLowerCase().split(RegExp(r'\W+'));
@@ -57,7 +65,7 @@ class _AdminNlpReportPageState extends State<AdminNlpReportPage> {
               driverStats[dId] = {'nb_avis': 0, 'sum_score': 0.0};
             }
             driverStats[dId]!['nb_avis'] += 1;
-            driverStats[dId]!['sum_score'] += (sentiment == 'Positif' ? 1.0 : (sentiment == 'Négatif' ? -1.0 : 0.0));
+            driverStats[dId]!['sum_score'] += scoreVal;
           }
         }
       }
@@ -89,8 +97,13 @@ class _AdminNlpReportPageState extends State<AdminNlpReportPage> {
           double pSumScore = 0;
           for (var a in pAvis) {
             String sentiment = a['Sentiment_label'] ?? 'Neutre';
-            if (sentiment == 'Positif') { pSumScore += 1.0; }
-            else if (sentiment == 'Négatif') { pSumScore += -1.0; }
+            double scoreVal = 0.0;
+            if (a['Sentiment_score'] != null) {
+              scoreVal = (a['Sentiment_score'] as num).toDouble();
+            } else {
+              scoreVal = sentiment == 'Positif' ? 1.0 : (sentiment == 'Négatif' ? -1.0 : 0.0);
+            }
+            pSumScore += scoreVal;
           }
           double avgSentiment = pSumScore / pAvis.length;
           double iaScore = (avgSentiment + 1) * 50;
@@ -99,12 +112,15 @@ class _AdminNlpReportPageState extends State<AdminNlpReportPage> {
             'ID_parcours': pId,
             'Depart': p['Depart'] ?? 'Inconnu',
             'Arrivee': p['Arrivee'] ?? 'Inconnu',
+            'Heure_depart': p['Heure_depart'] ?? '',
             'total_avis': pAvis.length,
             'ia_score': iaScore,
             'avis_list': pAvis,
           });
         }
       }
+
+      parcoursStats.sort((a, b) => (a['Heure_depart'] ?? '').toString().compareTo((b['Heure_depart'] ?? '').toString()));
 
       if (mounted) {
         setState(() {

@@ -249,7 +249,7 @@ def categorize_comment(comment):
     return best if scores[best] > 0 else "General"
 
 
-def analyze_sentiment(comment):
+def analyze_sentiment(comment, note=3):
     text = (comment or "").strip()
     lowered = text.lower()
     score = 0.0
@@ -262,7 +262,16 @@ def analyze_sentiment(comment):
     score += 0.25 * sum(1 for word in POS_WORDS if word in lowered)
     score -= 0.35 * sum(1 for word in NEG_WORDS if word in lowered)
     score = max(-1.0, min(1.0, score))
-    label = "Positif" if score > 0.15 else "Negatif" if score < -0.15 else "Neutre"
+    label = "Positif" if score > 0.15 else "Négatif" if score < -0.15 else "Neutre"
+
+    # La note prime sur le sentiment
+    if note >= 4 and label == "Négatif":
+        label = "Neutre"
+    elif note <= 2 and label == "Positif":
+        label = "Neutre"
+    elif note == 3:
+        label = "Neutre"
+
     keywords = [word for word in DRIVER_KEYWORDS + COMFORT_KEYWORDS + VEHICLE_KEYWORDS + SERVICE_KEYWORDS if word in lowered]
     risk = "Oui" if score < -0.55 or "danger" in lowered or "panne" in lowered else "Non"
     return round(score, 3), label, ", ".join(dict.fromkeys(keywords)), categorize_comment(text), risk
@@ -401,22 +410,13 @@ def analyze_sentiment_route():
         return respond({"ok": True})
     data = request.get_json() or {}
     commentaire = data.get("commentaire", "")
-    note = int(data.get("note", 3))
+    note = to_int(data.get("note"), 3)
 
-    score, label, keywords, category, is_risk = analyze_sentiment(commentaire)
-
-    # La note prime sur le sentiment si extrême
-    if note >= 4 and label == "Negatif":
-        label = "Neutre"
-    if note <= 2 and label == "Positif":
-        label = "Neutre"
-
-    # Convertir label interne → label affiché en français
-    label_fr = {"Positif": "Positif", "Negatif": "Négatif", "Neutre": "Neutre"}.get(label, label)
+    score, label, keywords, category, is_risk = analyze_sentiment(commentaire, note)
 
     return respond({
         "score": score,
-        "label": label_fr,
+        "label": label,
         "keywords": keywords,
         "category": category,
         "is_risk": is_risk,
@@ -782,7 +782,8 @@ def add_avis():
         return respond({"ok": True})
     data = request.get_json() or {}
     comment = data.get("commentaire", "")
-    score, label, keywords, category, is_risk = analyze_sentiment(comment)
+    note = to_int(data.get("note"), 3)
+    score, label, keywords, category, is_risk = analyze_sentiment(comment, note)
     client_id = resolve_client_code(data.get("client_id") or data.get("code_client"))
     code_chauffeur, code_ligne, code_bus, parcours_id = review_context(data.get("id_historique"), data.get("parcours_id"))
     date_avis = data.get("date") or datetime.now().strftime("%Y-%m-%d")
