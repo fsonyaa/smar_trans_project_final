@@ -23,19 +23,57 @@ class _ClientAiDashboardPageState extends State<ClientAiDashboardPage> {
     try {
       final allAvis = await FirestoreService.getAllAvis();
       final avisList = allAvis.where((a) => (a['Category'] ?? '').toString().toLowerCase() == 'chauffeur').toList();
+      final chauffeurs = await FirestoreService.getAllChauffeurs();
+      
+      final chauffMap = {for (var c in chauffeurs) c['uid'] ?? c['id'] ?? '': c['nom'] ?? 'Inconnu'};
       
       int total = avisList.length;
       int pos = 0, neg = 0, neu = 0;
       double sumScore = 0;
       double sumNotes = 0;
       
+      Map<String, int> wordCounts = {};
+      Map<String, Map<String, dynamic>> driverStats = {};
+
       for (var a in avisList) {
         String sentiment = a['Sentiment_label'] ?? 'Neutre';
         if (sentiment == 'Positif') { pos++; sumScore += 1.0; }
         else if (sentiment == 'Négatif') { neg++; sumScore += -1.0; }
         else { neu++; }
         sumNotes += (a['Note'] ?? 0).toDouble();
+
+        // Keywords extraction
+        final comment = (a['Commentaire'] ?? '').toString().toLowerCase();
+        final words = comment.split(RegExp(r"[^\w\u00C0-\u00FF'-]+"));
+        for (var w in words) {
+          if (w.length >= 3 && !['pour', 'avec', 'dans', 'très', 'plus', 'cette', 'nous', 'sans', 'tout', 'mais', 'bien', 'comme', 'votre', 'est', 'les', 'des', 'une', 'qui', 'que', 'sur', 'dans', 'sont', 'aux', 'mon', 'son', 'mes', 'ses', 'des', 'les', 'elle', 'ils', 'elles', 'notre', 'votre', 'leur'].contains(w)) {
+            wordCounts[w] = (wordCounts[w] ?? 0) + 1;
+          }
+        }
+
+        // Driver stats
+        String dId = a['driver_uid'] ?? '';
+        if (dId.isNotEmpty) {
+          if (!driverStats.containsKey(dId)) {
+            driverStats[dId] = {'nb_avis': 0, 'sum_score': 0.0};
+          }
+          driverStats[dId]!['nb_avis'] += 1;
+          driverStats[dId]!['sum_score'] += (sentiment == 'Positif' ? 1.0 : (sentiment == 'Négatif' ? -1.0 : 0.0));
+        }
       }
+
+      var sortedWords = wordCounts.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+      List topKeywords = sortedWords.take(12).map((e) => [e.key, e.value]).toList();
+
+      List topDrivers = driverStats.entries.map((e) {
+        double avgSentiment = e.value['nb_avis'] > 0 ? e.value['sum_score'] / e.value['nb_avis'] : 0.0;
+        double iaScore = ((avgSentiment + 1) * 50);
+        return {
+          'Nom': chauffMap[e.key] ?? 'Chauffeur', 
+          'nb_avis': e.value['nb_avis'],
+          'ia_score': iaScore,
+        };
+      }).toList()..sort((a, b) => (b['ia_score'] as double).compareTo(a['ia_score'] as double));
 
       if (mounted) {
         setState(() {
@@ -44,8 +82,8 @@ class _ClientAiDashboardPageState extends State<ClientAiDashboardPage> {
             'satisfaction_chauffeur': total > 0 ? ((sumScore / total) + 1) * 50 : 0.0,
             'avg_note': total > 0 ? sumNotes / total : 0.0,
             'sentiment_distribution': {'Positif': pos, 'Négatif': neg, 'Neutre': neu},
-            'top_keywords': [],
-            'top_drivers': [],
+            'top_keywords': topKeywords,
+            'top_drivers': topDrivers,
             'avis_list': avisList,
           };
           isLoading = false;
@@ -157,11 +195,178 @@ class _ClientAiDashboardPageState extends State<ClientAiDashboardPage> {
           const SizedBox(height: 10),
           _buildSentimentBars(pos, neg, neu, total),
           const SizedBox(height: 20),
+          _sectionTitle('Mots-clés Chauffeur Détectés', Icons.bolt),
+          const SizedBox(height: 10),
+          _buildKeywordCloud(),
+          const SizedBox(height: 20),
+          _sectionTitle('Évaluation des Chauffeurs (IA)', Icons.emoji_events),
+          const SizedBox(height: 10),
+          _buildTopDriversList(),
+          const SizedBox(height: 20),
           _sectionTitle('Avis détectés — Chauffeurs ($total)', Icons.comment),
           const SizedBox(height: 10),
           ...avisList.map((a) => _buildAvisCard(a)),
         ],
       ),
+    );
+  }
+
+  Widget _buildKeywordCloud() {
+    List keywords = driverReport['top_keywords'] ?? [];
+    if (keywords.isEmpty) return const SizedBox.shrink();
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              spreadRadius: 1)
+        ],
+      ),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: keywords.map<Widget>((kw) {
+          return Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: const Color(0xFF3F51B5), // Indigo blue color from the screenshot chips
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(
+              "${kw[0]} (${kw[1]})",
+              style: const TextStyle(fontSize: 12, color: Colors.white, fontWeight: FontWeight.w500),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildTopDriversList() {
+    List drivers = driverReport['top_drivers'] ?? [];
+    if (drivers.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      children: List.generate(drivers.length, (index) {
+        final d = drivers[index];
+        double score = (d['ia_score'] ?? 0.0).toDouble();
+        Color scoreColor = score >= 60
+            ? Colors.green
+            : score >= 40
+                ? const Color(0xFFFFA000) // Golden-orange color
+                : Colors.red;
+
+        // Custom medals/avatars based on rank (1st = gold, 2nd = silver, etc.)
+        Widget medalBadge;
+        if (index == 0) {
+          medalBadge = Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: Colors.amber.withOpacity(0.15),
+              shape: BoxShape.circle,
+            ),
+            child: const Center(
+              child: Text(
+                '🥇',
+                style: TextStyle(fontSize: 22),
+              ),
+            ),
+          );
+        } else if (index == 1) {
+          medalBadge = Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: Colors.grey.withOpacity(0.15),
+              shape: BoxShape.circle,
+            ),
+            child: const Center(
+              child: Text(
+                '🥈',
+                style: TextStyle(fontSize: 22),
+              ),
+            ),
+          );
+        } else {
+          medalBadge = Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: Colors.brown.withOpacity(0.15),
+              shape: BoxShape.circle,
+            ),
+            child: const Center(
+              child: Text(
+                '🥉',
+                style: TextStyle(fontSize: 22),
+              ),
+            ),
+          );
+        }
+
+        return Container(
+          margin: const EdgeInsets.only(bottom: 10),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                  color: Colors.black.withOpacity(0.04),
+                  blurRadius: 10,
+                  spreadRadius: 1)
+            ],
+          ),
+          child: Row(
+            children: [
+              medalBadge,
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      d['Nom'] ?? 'Chauffeur',
+                      style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF1A1A2E)),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      "${d['nb_avis'] ?? 0} avis reçus",
+                      style: TextStyle(fontSize: 11, color: Colors.grey[500]),
+                    ),
+                  ],
+                ),
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    "${score.toStringAsFixed(1)}%",
+                    style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: scoreColor),
+                  ),
+                  const Text(
+                    "Score IA",
+                    style: TextStyle(fontSize: 10, color: Colors.grey),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      }),
     );
   }
 
