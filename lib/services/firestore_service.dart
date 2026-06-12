@@ -256,9 +256,16 @@ class FirestoreService {
     final parcoursList = snap.docs.map((d) => {'ID_parcours': d.id, ...d.data()}).toList();
 
     final lignes = await getLignes();
-    final lignesMap = {for (var l in lignes) l['Code_Ligne']: l['Libelle'] ?? ''};
+    // Construire le map avec l'ID du document comme clé
+    final lignesMap = <String, String>{};
+    for (var l in lignes) {
+      final key = (l['code_ligne'] ?? l['Code_Ligne'] ?? '').toString();
+      final nom = (l['libelle'] ?? l['Libelle'] ?? l['description'] ?? '').toString();
+      if (key.isNotEmpty) lignesMap[key] = nom;
+    }
     for (var p in parcoursList) {
-      p['Nom_Ligne'] = lignesMap[p['Code_Ligne']] ?? '';
+      final codeLigne = (p['Code_Ligne'] ?? '').toString();
+      p['Nom_Ligne'] = lignesMap[codeLigne] ?? codeLigne;
     }
     return parcoursList;
   }

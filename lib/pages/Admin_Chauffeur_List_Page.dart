@@ -66,6 +66,7 @@ class _AdminChauffeurListPageState extends State<AdminChauffeurListPage> {
         uid: uid,
         nom: nomController.text,
         email: emailController.text,
+        password: passwordController.text.trim().isEmpty ? null : passwordController.text.trim(),
       );
       if (mounted) {
         Navigator.pop(context);
@@ -112,12 +113,15 @@ class _AdminChauffeurListPageState extends State<AdminChauffeurListPage> {
             children: [
               TextField(controller: nomController, decoration: const InputDecoration(labelText: "Nom")),
               TextField(controller: emailController, decoration: const InputDecoration(labelText: "Email")),
-              if (chauffeur == null) 
-                TextField(
-                  controller: passwordController, 
-                  decoration: const InputDecoration(labelText: "Mot de passe"), 
-                  obscureText: true
+              const SizedBox(height: 4),
+              TextField(
+                controller: passwordController,
+                decoration: InputDecoration(
+                  labelText: "Mot de passe",
+                  hintText: chauffeur == null ? null : "Laisser vide si inchangé",
                 ),
+                obscureText: true,
+              ),
             ],
           ),
         ),

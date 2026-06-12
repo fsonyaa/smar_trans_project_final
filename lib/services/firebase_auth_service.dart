@@ -27,6 +27,21 @@ class FirebaseAuthService {
       }
 
       final data = doc.data()!;
+
+      // ── Vérifier si l'admin a défini un nouveau mot de passe ──
+      final pending = data['pendingPassword'];
+      if (pending != null && pending.toString().isNotEmpty) {
+        try {
+          // L'utilisateur vient de se connecter → on peut changer son propre mot de passe
+          await credential.user!.updatePassword(pending.toString());
+          // Supprimer le champ une fois appliqué
+          await _db.collection('users').doc(uid).update({'pendingPassword': FieldValue.delete()});
+          try { await _db.collection('chauffeurs').doc(uid).update({'pendingPassword': FieldValue.delete()}); } catch (_) {}
+        } catch (_) {
+          // En cas d'erreur silencieuse (session expirée), on ignore
+        }
+      }
+
       return {
         'uid': uid,
         'nom': data['nom'] ?? data['name'] ?? 'Utilisateur',
@@ -194,6 +209,7 @@ class FirebaseAuthService {
     required String uid,
     required String nom,
     required String email,
+    String? password,
   }) async {
     final data = {
       'nom': nom.trim(),
@@ -202,6 +218,14 @@ class FirebaseAuthService {
     // Mettre à jour dans les deux collections
     await _db.collection('users').doc(uid).update(data);
     try { await _db.collection('chauffeurs').doc(uid).update(data); } catch (_) {}
+
+    // Si un nouveau mot de passe est fourni, le stocker pour réinitialisation
+    // (nécessite que l'admin soit connecté en tant que cet utilisateur via Firebase Admin SDK
+    // ou Cloud Function – ici on stocke dans Firestore pour traitement serveur)
+    if (password != null && password.trim().isNotEmpty) {
+      await _db.collection('users').doc(uid).update({'pendingPassword': password.trim()});
+      try { await _db.collection('chauffeurs').doc(uid).update({'pendingPassword': password.trim()}); } catch (_) {}
+    }
   }
 
   // ─────────────────────────────────────────────────────────

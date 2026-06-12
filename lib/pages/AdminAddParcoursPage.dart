@@ -189,44 +189,58 @@ class _AdminAddParcoursPageState extends State<AdminAddParcoursPage> {
       return;
     }
 
+    // Vérifie qu'au moins un créneau horaire est rempli
+    final filledSlots = heureControllers.where((c) => c.text.isNotEmpty).toList();
+    if (filledSlots.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text("Veuillez saisir au moins une heure de départ ❌"),
+            backgroundColor: Colors.orange),
+      );
+      return;
+    }
+
     int count = 0;
     for (int i = 0; i < heureControllers.length; i++) {
-      if (heureControllers[i].text.isNotEmpty) {
-        String arrivalTime;
-        if (i < heureControllers.length - 1 &&
-            heureControllers[i + 1].text.isNotEmpty) {
-          arrivalTime = heureControllers[i + 1].text;
-        } else {
-          arrivalTime = addOneHour24h(heureControllers[i].text);
-        }
+      final heureDepart = heureControllers[i].text.trim();
+      if (heureDepart.isEmpty) continue; // Ignorer les créneaux vides
 
-        String currentDepart =
-            (i % 2 == 0) ? departController.text : arriveeController.text;
-        String currentArrivee =
-            (i % 2 == 0) ? arriveeController.text : departController.text;
+      // Heure d'arrivée = +1h automatique (indépendant du créneau suivant)
+      final heureArrivee = addOneHour24h(heureDepart);
 
-        try {
-          await FirestoreService.addParcours(
-            depart: currentDepart,
-            arrivee: currentArrivee,
-            heureDepart: heureControllers[i].text,
-            heureArrivee: arrivalTime,
-            codeLigne: selectedLigne ?? '',
-          );
-          count++;
-        } catch (e) {
-          debugPrint("Failed to add parcours: $e");
-        }
+      // Alternance aller / retour selon l'index pair/impair
+      final currentDepart =
+          (i % 2 == 0) ? departController.text : arriveeController.text;
+      final currentArrivee =
+          (i % 2 == 0) ? arriveeController.text : departController.text;
+
+      try {
+        await FirestoreService.addParcours(
+          depart: currentDepart,
+          arrivee: currentArrivee,
+          heureDepart: heureDepart,
+          heureArrivee: heureArrivee,
+          codeLigne: selectedLigne ?? '',
+        );
+        count++;
+      } catch (e) {
+        debugPrint("Failed to add parcours: $e");
       }
     }
 
     if (count > 0 && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-            content: Text("$count Trajets enregistrés (Aller/Retour) ✅"),
+            content: Text("$count Parcours enregistrés ✅"),
             backgroundColor: Colors.green),
       );
       Navigator.pop(context);
+    } else if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text("Aucun parcours enregistré. Vérifiez les données ❌"),
+            backgroundColor: Colors.red),
+      );
     }
   }
 
