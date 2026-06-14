@@ -230,7 +230,7 @@ class _ClientDashboardState extends State<ClientDashboard> {
                                       crossAxisAlignment:
                                           CrossAxisAlignment.start,
                                       children: [
-                                        Text("Bus: ${ligne['code_bus'] ?? ''}"),
+                                        Text("🚌 Bus: ${ligne['numero_bus']?.toString().isNotEmpty == true ? ligne['numero_bus'] : (ligne['code_bus'] ?? 'N/A')}"),
                                         const SizedBox(height: 10),
                                         rides.isEmpty
                                             ? const Text(
@@ -250,10 +250,60 @@ class _ClientDashboardState extends State<ClientDashboard> {
                                                             fontWeight:
                                                                 FontWeight.w500),
                                                       ),
-                                                      subtitle: Text(
-                                                          "Date: ${r['Date'] ?? ''} | Chauffeur: ${r['Nom_Chauffeur'] ?? ''}",
-                                                          style: const TextStyle(
-                                                              fontSize: 11)),
+                                                      subtitle: Column(
+                                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                                        children: [
+                                                          Row(
+                                                            children: [
+                                                              const Icon(Icons.person, size: 12, color: Colors.teal),
+                                                              const SizedBox(width: 4),
+                                                              Text(
+                                                                (r['Nom_Chauffeur'] != null && r['Nom_Chauffeur'].toString().isNotEmpty)
+                                                                    ? r['Nom_Chauffeur'].toString()
+                                                                    : 'Non assigné',
+                                                                style: const TextStyle(fontSize: 11),
+                                                              ),
+                                                            ],
+                                                          ),
+                                                          Row(
+                                                            children: [
+                                                              const Icon(Icons.calendar_today, size: 11, color: Colors.grey),
+                                                              const SizedBox(width: 4),
+                                                              Text(
+                                                                (r['Date'] != null && r['Date'].toString().isNotEmpty)
+                                                                    ? r['Date'].toString()
+                                                                    : 'Non planifié',
+                                                                style: const TextStyle(fontSize: 11, color: Colors.grey),
+                                                              ),
+                                                            ],
+                                                          ),
+                                                          if ((r['Statut'] ?? '').toString().isNotEmpty)
+                                                            Container(
+                                                              margin: const EdgeInsets.only(top: 2),
+                                                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                                                              decoration: BoxDecoration(
+                                                                color: r['Statut'] == 'Terminé'
+                                                                    ? Colors.green.withOpacity(0.15)
+                                                                    : r['Statut'] == 'En cours'
+                                                                        ? Colors.orange.withOpacity(0.15)
+                                                                        : Colors.grey.withOpacity(0.15),
+                                                                borderRadius: BorderRadius.circular(8),
+                                                              ),
+                                                              child: Text(
+                                                                r['Statut'].toString(),
+                                                                style: TextStyle(
+                                                                  fontSize: 10,
+                                                                  color: r['Statut'] == 'Terminé'
+                                                                      ? Colors.green[700]
+                                                                      : r['Statut'] == 'En cours'
+                                                                          ? Colors.orange[700]
+                                                                          : Colors.grey[600],
+                                                                  fontWeight: FontWeight.w600,
+                                                                ),
+                                                              ),
+                                                            ),
+                                                        ],
+                                                      ),
                                                       trailing: IconButton(
                                                         icon: const Icon(
                                                             Icons.star,

@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
+import 'package:intl/intl.dart';
 import 'nlp_service.dart';
 
 /// Service centralisé pour toutes les opérations Firestore (CRUD)
@@ -428,11 +429,13 @@ class FirestoreService {
   // ════════════════════════════════════════════════════════════
   // INCIDENTS
   // ════════════════════════════════════════════════════════════
+  /// Déclare un incident par un chauffeur avec analyse IA automatique
   static Future<void> declareIncident({
     required String driverUid,
     required String description,
     required String timestamp,
   }) async {
+    // ── Récupérer le bus et la ligne du chauffeur ──
     final busSnap = await _db.collection('bus')
         .where('Code_chauffeur', isEqualTo: driverUid).get();
     String numeroBus = 'Non assigné';
@@ -442,9 +445,19 @@ class FirestoreService {
       final ligneSnap = await _db.collection('lignes')
           .where('code_bus', isEqualTo: busSnap.docs.first.id).get();
       if (ligneSnap.docs.isNotEmpty) {
-        nomLigne = ligneSnap.docs.first.data()['libelle'] ?? ligneSnap.docs.first.data()['Libelle'] ?? '';
+        nomLigne = ligneSnap.docs.first.data()['libelle'] ??
+            ligneSnap.docs.first.data()['Libelle'] ?? '';
       }
     }
+
+    // ── Analyse IA de la description ──
+    final nlp = await NlpService.analyze(description, 1); // note=1 → toujours critique
+    final aiLabel = nlp['label'] as String? ?? 'Neutre';
+    final aiKeywords = nlp['keywords'] as String?;
+    final aiCategory = nlp['category'] as String? ?? 'General';
+    final aiSource = nlp['source'] as String? ?? 'local_fallback';
+    final isCritique = aiLabel == 'Négatif' ? 1 : 0;
+    debugPrint('🚨 Incident IA [$aiSource] → $aiLabel / $aiCategory');
 
     await _db.collection('incidents').add({
       'driver_uid': driverUid,
@@ -454,8 +467,41 @@ class FirestoreService {
       'Statut': 'Nouveau',
       'Numero_bus': numeroBus,
       'Nom_Ligne': nomLigne,
-      'Performance_IA': 0,
-      'Critique': 0,
+      'Performance_IA': isCritique,
+      'Critique': isCritique,
+      // ── Champs IA ──
+      'AI_Label': aiLabel,
+      if (aiKeywords != null) 'AI_Keywords': aiKeywords,
+      'AI_Category': aiCategory,
+      'AI_Source': aiSource,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  /// Ajoute un incident manuellement par l'admin (avec résultat IA optionnel)
+  static Future<void> addIncidentByAdmin({
+    required String description,
+    int isCritique = 0,
+    String category = 'General',
+    String? aiLabel,
+    String? aiKeywords,
+  }) async {
+    final now = DateFormat('yyyy-MM-dd HH:mm:ss').format(DateTime.now());
+    await _db.collection('incidents').add({
+      'Description': description,
+      'timestamp': now,
+      'Date': now.split(' ')[0],
+      'Statut': 'Nouveau',
+      'Numero_bus': 'N/A',
+      'Nom_Ligne': '',
+      'driver_uid': '',
+      'Performance_IA': isCritique,
+      'Critique': isCritique,
+      // ── Champs IA ──
+      if (aiLabel != null) 'AI_Label': aiLabel,
+      if (aiKeywords != null) 'AI_Keywords': aiKeywords,
+      'AI_Category': category,
+      'ajouté_par': 'admin',
       'createdAt': FieldValue.serverTimestamp(),
     });
   }
@@ -618,30 +664,92 @@ class FirestoreService {
   // ════════════════════════════════════════════════════════════
   static Future<List<Map<String, dynamic>>> getClientTrips() async {
     final lignes = await getAllLignes();
+    final buses = await getBuses();
+    final chauffeurs = await getAllChauffeurs();
+    // Map: uid chauffeur → nom
+    final chauffMap = <String, String>{
+      for (var c in chauffeurs) (c['uid'] ?? '').toString(): (c['nom'] ?? 'Non assigné').toString()
+    };
+    // Map: busId → uid chauffeur
+    final busDriverMap = <String, String>{
+      for (var b in buses)
+        if ((b['Code_chauffeur'] ?? '').toString().isNotEmpty)
+          b['Code_bus'].toString(): (b['Code_chauffeur'] ?? '').toString()
+    };
+
     final List<Map<String, dynamic>> result = [];
 
     for (var ligne in lignes) {
       final parcoursSnap = await _db.collection('parcours')
           .where('Code_Ligne', isEqualTo: ligne['code_ligne']).get();
 
+      // Résoudre le nom du chauffeur via bus de la ligne
+      final codeBus = (ligne['code_bus'] ?? '').toString();
+      final driverUid = busDriverMap[codeBus] ?? '';
+      final nomChauffeur = driverUid.isNotEmpty
+          ? (chauffMap[driverUid] ?? 'Non assigné')
+          : 'Non assigné';
+
       final List<Map<String, dynamic>> rides = [];
       for (var p in parcoursSnap.docs) {
+        final pData = p.data();
+
+        // Chercher la dernière date réelle depuis l'historique (sans orderBy pour éviter l'index composite)
+        String lastDate = '';
+        try {
+          final histSnap = await _db.collection('historique')
+              .where('parcours_id', isEqualTo: p.id)
+              .get();
+          if (histSnap.docs.isNotEmpty) {
+            // Trier côté client par date (timestamp ou Date)
+            final sorted = histSnap.docs.toList()
+              ..sort((a, b) {
+                final ta = a.data()['createdAt'];
+                final tb = b.data()['createdAt'];
+                if (ta == null && tb == null) return 0;
+                if (ta == null) return 1;
+                if (tb == null) return -1;
+                return tb.compareTo(ta);
+              });
+            lastDate = sorted.first.data()['Date'] ?? '';
+          }
+        } catch (_) {}
+
+        // Fallback : utiliser l'heure de départ comme horaire
+        final heureDepart = pData['Heure_depart'] ?? '';
+        final displayDate = lastDate.isNotEmpty
+            ? lastDate
+            : (heureDepart.isNotEmpty ? heureDepart : 'Non planifié');
+
         rides.add({
           'ID_historique': p.id,
-          'Depart': p.data()['Depart'] ?? '',
-          'Arrivee': p.data()['Arrivee'] ?? '',
-          'Heure_depart': p.data()['Heure_depart'] ?? '',
-          'Heure_arrivee': p.data()['Heure_arrivee'] ?? '',
-          'Statut': p.data()['Statut'] ?? 'Pas démarré',
+          'Depart': pData['Depart'] ?? '',
+          'Arrivee': pData['Arrivee'] ?? '',
+          'Heure_depart': heureDepart,
+          'Heure_arrivee': pData['Heure_arrivee'] ?? '',
+          'Statut': pData['Statut'] ?? 'Pas démarré',
+          'Date': displayDate,
+          'Nom_Chauffeur': nomChauffeur,
         });
+      }
+
+      // Récupérer le vrai numéro du bus
+      String numeroBus = '';
+      if (codeBus.isNotEmpty) {
+        final busInfo = buses.firstWhere(
+          (b) => b['Code_bus'].toString() == codeBus,
+          orElse: () => {},
+        );
+        numeroBus = (busInfo['Numero_bus'] ?? '').toString();
       }
 
       if (rides.isNotEmpty) {
         result.add({
           'libelle': ligne['libelle'] ?? ligne['Libelle'] ?? '',
           'description': ligne['description'] ?? '',
-          'code_bus': ligne['code_bus'] ?? '',
-          'nom_chauffeur': ligne['nom_chauffeur'] ?? 'Non assigné',
+          'code_bus': codeBus,
+          'numero_bus': numeroBus.isNotEmpty ? numeroBus : codeBus,
+          'nom_chauffeur': nomChauffeur,
           'rides': rides,
         });
       }

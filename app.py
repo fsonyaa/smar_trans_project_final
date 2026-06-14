@@ -228,12 +228,40 @@ def delete_where(table, filters):
     return len(rows)
 
 
-DRIVER_KEYWORDS = ["chauffeur", "conducteur", "impoli", "poli", "conduite", "agressif", "respectueux"]
-COMFORT_KEYWORDS = ["confort", "siege", "clim", "propre", "sale", "bruit", "chaud", "froid"]
-VEHICLE_KEYWORDS = ["bus", "vehicule", "panne", "moteur", "vieux", "neuf"]
-SERVICE_KEYWORDS = ["retard", "heure", "attente", "horaire", "trajet", "ponctuel"]
-NEG_WORDS = ["nul", "mauvais", "pire", "sale", "impoli", "retard", "lent", "panne", "danger", "probleme"]
-POS_WORDS = ["super", "excellent", "bien", "bon", "rapide", "confortable", "gentil", "merci", "bravo"]
+DRIVER_KEYWORDS = [
+    "chauffeur", "conducteur", "impoli", "poli", "conduite",
+    "agressif", "respectueux", "pilote",
+]
+COMFORT_KEYWORDS = [
+    "confort", "siege", "clim", "climatisation", "propre",
+    "sale", "bruit", "chaud", "froid",
+]
+VEHICLE_KEYWORDS = [
+    "bus", "vehicule", "panne", "moteur", "vieux", "neuf",
+]
+SERVICE_KEYWORDS = [
+    "retard", "heure", "attente", "horaire", "trajet", "ponctuel", "service", "ligne",
+]
+# Mots négatifs étendus (sans accents pour compatibilité TextBlob)
+NEG_WORDS = [
+    "nul", "nulle", "mauvais", "mauvaise", "pire", "sale",
+    "impoli", "impolie", "retard", "lent", "lente", "panne",
+    "danger", "dangereux", "dangereuse", "probleme", "problème",
+    "horrible", "affreux", "inacceptable", "inadmissible",
+    "insupportable", "decu", "decevant", "honte", "scandale",
+    "catastrophe", "accident", "agressif", "agressive",
+]
+# Mots positifs étendus
+POS_WORDS = [
+    "super", "excellent", "excellente", "bien", "bon", "bonne",
+    "rapide", "confortable", "gentil", "gentille", "merci", "bravo",
+    "parfait", "parfaite", "ponctuel", "ponctuelle",
+    "propre", "agreable", "sympathique", "sympa",
+    "professionnel", "serieux", "satisfait", "satisfaite",
+    "recommande", "top", "felicitations",
+]
+# Mots de négation
+NEGATION_WORDS = ["pas", "non", "aucun", "aucune", "jamais", "plus", "sans", "rien"]
 
 
 def categorize_comment(comment):
@@ -250,8 +278,20 @@ def categorize_comment(comment):
 
 
 def analyze_sentiment(comment, note=3):
+    """Analyse le sentiment d'un commentaire en combinant TextBlob + mots-clés + note.
+
+    Règles de combinaison texte/note :
+      - Aucun mot-clé trouvé          → la note seule décide
+      - Note == 3 (neutre)            → le texte seul décide
+      - Texte ambigu (neutre)         → la note complète
+      - Accord texte & note           → résultat concordant
+      - Contradiction texte vs note   → Neutre
+    """
     text = (comment or "").strip()
     lowered = text.lower()
+    tokens = lowered.split()
+
+    # ── Score TextBlob (si disponible) ──────────────────────────
     score = 0.0
     if HAS_NLP and text:
         try:
@@ -259,18 +299,52 @@ def analyze_sentiment(comment, note=3):
             score = float(TextBlob(translated).sentiment.polarity)
         except Exception:
             score = 0.0
-    score += 0.25 * sum(1 for word in POS_WORDS if word in lowered)
-    score -= 0.35 * sum(1 for word in NEG_WORDS if word in lowered)
-    score = max(-1.0, min(1.0, score))
-    label = "Positif" if score > 0.15 else "Négatif" if score < -0.15 else "Neutre"
 
-    # La note prime sur le sentiment
-    if note >= 4 and label == "Négatif":
-        label = "Neutre"
-    elif note <= 2 and label == "Positif":
-        label = "Neutre"
-    elif note == 3:
-        label = "Neutre"
+    # ── Ajustement par mots-clés avec gestion des négations ─────
+    pos_bonus = 0.0
+    neg_bonus = 0.0
+    for i, token in enumerate(tokens):
+        has_negation = any(
+            neg in tokens[max(0, i-2):i]
+            for neg in NEGATION_WORDS
+        )
+        if any(token == w or w in lowered for w in POS_WORDS):
+            if has_negation:
+                neg_bonus += 0.35  # "pas bon" → négatif
+            else:
+                pos_bonus += 0.25
+        if any(token == w or w in lowered for w in NEG_WORDS):
+            if has_negation:
+                pos_bonus += 0.15  # "pas mauvais" → légèrement positif
+            else:
+                neg_bonus += 0.35
+
+    score = score + pos_bonus - neg_bonus
+    score = max(-1.0, min(1.0, score))
+
+    # ── Label depuis le score texte ──────────────────────────────
+    text_label = "Positif" if score > 0.15 else "Négatif" if score < -0.15 else "Neutre"
+    has_keywords = (pos_bonus + neg_bonus) > 0 or (HAS_NLP and score != 0.0)
+
+    # ── Label depuis la note ─────────────────────────────────────
+    if note >= 4:
+        note_label = "Positif"
+    elif note <= 2:
+        note_label = "Négatif"
+    else:
+        note_label = "Neutre"  # note == 3
+
+    # ── Combinaison intelligente ─────────────────────────────────
+    if not has_keywords:
+        label = note_label              # Aucun signal texte → note décide
+    elif note_label == "Neutre":
+        label = text_label              # Note neutre → texte décide
+    elif text_label == "Neutre":
+        label = note_label              # Texte ambigu → note complète
+    elif text_label == note_label:
+        label = text_label              # Accord → résultat clair
+    else:
+        label = "Neutre"                # Contradiction → Neutre
 
     keywords = [word for word in DRIVER_KEYWORDS + COMFORT_KEYWORDS + VEHICLE_KEYWORDS + SERVICE_KEYWORDS if word in lowered]
     risk = "Oui" if score < -0.55 or "danger" in lowered or "panne" in lowered else "Non"

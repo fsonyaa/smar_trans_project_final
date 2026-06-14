@@ -50,6 +50,8 @@ class _IncidentListPageState extends State<IncidentListPage> {
     }
   }
 
+
+  /// Affiche le menu d'actions pour un incident (Détails, Résolu, Critique, Supprimer)
   void _showActionMenu(Map<String, dynamic> incident) {
     showModalBottomSheet(
       context: context,
@@ -140,23 +142,54 @@ class _IncidentListPageState extends State<IncidentListPage> {
   }
 
   void _showDetailsDialog(Map<String, dynamic> incident) {
+    final bool isCritique = incident['Critique'] == 1 || incident['Performance_IA'] == 1;
+    final String? aiLabel = incident['AI_Label'];
+    final String? aiKeywords = incident['AI_Keywords'];
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text("Détails de l'incident"),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Icon(isCritique ? Icons.priority_high : Icons.info_outline,
+                color: isCritique ? Colors.red : Colors.orange),
+            const SizedBox(width: 8),
+            const Text("Détails de l'incident"),
+          ],
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text("📍 Parcours: ${incident['Nom_Ligne'] ?? 'N/A'}", style: const TextStyle(fontWeight: FontWeight.bold)),
-            Text("🚌 Bus Numero: ${incident['Numero_bus'] ?? 'Non assigné'}"),
-            Text("🕒 Date: ${incident['Date']}"),
-            Text("📝 Description: ${incident['Description']}"),
-            const SizedBox(height: 10),
-            Text(
-              "Statut actuel: ${incident['Statut'] ?? 'Nouveau'}", 
-              style: const TextStyle(color: Colors.orange),
-            ),
+            _detailRow("📍 Parcours", incident['Nom_Ligne'] ?? 'N/A'),
+            _detailRow("🚌 Bus Numero", incident['Numero_bus'] ?? 'Non assigné'),
+            _detailRow("🕒 Date", incident['Date'] ?? 'N/A'),
+            _detailRow("📝 Description", incident['Description'] ?? ''),
+            _detailRow("📊 Statut", incident['Statut'] ?? 'Nouveau'),
+            if (aiLabel != null) ...[
+              const Divider(),
+              Row(
+                children: [
+                  const Icon(Icons.psychology, size: 16, color: Colors.deepPurple),
+                  const SizedBox(width: 6),
+                  Text("IA : $aiLabel", style: const TextStyle(color: Colors.deepPurple, fontWeight: FontWeight.bold)),
+                ],
+              ),
+            ],
+            if (aiKeywords != null && aiKeywords.isNotEmpty)
+              Text("🔑 Mots-clés : $aiKeywords", style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+            if (isCritique)
+              Container(
+                margin: const EdgeInsets.only(top: 10),
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.red[50],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.red[200]!),
+                ),
+                child: const Text("⚠️ Incident critique", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 12)),
+              ),
           ],
         ),
         actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text("Fermer"))],
@@ -164,40 +197,144 @@ class _IncidentListPageState extends State<IncidentListPage> {
     );
   }
 
+  Widget _detailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: RichText(
+        text: TextSpan(
+          style: const TextStyle(fontSize: 13, color: Colors.black87),
+          children: [
+            TextSpan(text: "$label : ", style: const TextStyle(fontWeight: FontWeight.bold)),
+            TextSpan(text: value),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final pendingCount = incidents.where((i) => i['Statut'] == 'Nouveau' || i['Statut'] == 'Signale' || i['Statut'] == 'Signalé').length;
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Gestion des Incidents", style: TextStyle(fontWeight: FontWeight.bold)),
+        title: Row(
+          children: [
+            const Text("Gestion des Incidents", style: TextStyle(fontWeight: FontWeight.bold)),
+            if (pendingCount > 0) ...[
+              const SizedBox(width: 10),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.red,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text("$pendingCount", style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+              ),
+            ],
+          ],
+        ),
         backgroundColor: Colors.orange[800],
         elevation: 0,
+        actions: [
+          IconButton(icon: const Icon(Icons.refresh), onPressed: fetchIncidents),
+        ],
       ),
       body: isLoading 
           ? const Center(child: CircularProgressIndicator(color: Colors.orange))
           : RefreshIndicator(
               onRefresh: fetchIncidents,
               child: incidents.isEmpty 
-                  ? const Center(child: Text("Aucun incident à traiter"))
+                  ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.check_circle_outline, size: 70, color: Colors.green[300]),
+                          const SizedBox(height: 16),
+                          Text("Aucun incident à traiter 🎉", style: TextStyle(fontSize: 18, color: Colors.grey[600])),
+                        ],
+                      ),
+                    )
                   : ListView.builder(
+                      padding: const EdgeInsets.only(bottom: 80),
                       itemCount: incidents.length,
                       itemBuilder: (context, index) {
                         final incident = incidents[index];
                         bool isCritique = incident['Critique'] == 1 || incident['Performance_IA'] == 1;
+                        bool isResolved = incident['Statut'] == 'Résolu';
+                        final String? aiLabel = incident['AI_Label'];
+
+                        Color cardBorderColor = isCritique
+                            ? Colors.red
+                            : isResolved
+                                ? Colors.green
+                                : Colors.orange[300]!;
 
                         return Card(
                           margin: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(15),
-                            side: BorderSide(color: isCritique ? Colors.red : Colors.transparent, width: 2),
+                            side: BorderSide(color: cardBorderColor, width: isCritique ? 2 : 1),
                           ),
+                          elevation: isCritique ? 4 : 1,
                           child: ListTile(
                             onTap: () => _showActionMenu(incident),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                             leading: CircleAvatar(
-                              backgroundColor: isCritique ? Colors.red : Colors.orange[100],
-                              child: Icon(isCritique ? Icons.priority_high : Icons.warning, color: isCritique ? Colors.white : Colors.orange[900]),
+                              backgroundColor: isCritique 
+                                  ? Colors.red 
+                                  : isResolved 
+                                      ? Colors.green[100] 
+                                      : Colors.orange[100],
+                              child: Icon(
+                                isCritique ? Icons.priority_high : isResolved ? Icons.check : Icons.warning,
+                                color: isCritique ? Colors.white : isResolved ? Colors.green : Colors.orange[900],
+                              ),
                             ),
-                            title: Text("Bus N°: ${incident['Numero_bus'] ?? 'Non assigné'}", style: const TextStyle(fontWeight: FontWeight.bold)),
-                            subtitle: Text(incident['Description'] ?? '', maxLines: 1, overflow: TextOverflow.ellipsis),
+                            title: Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    "Bus N°: ${incident['Numero_bus'] ?? 'Non assigné'}",
+                                    style: const TextStyle(fontWeight: FontWeight.bold),
+                                  ),
+                                ),
+                                // Badge statut
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: isResolved ? Colors.green[50] : isCritique ? Colors.red[50] : Colors.orange[50],
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(color: isResolved ? Colors.green : isCritique ? Colors.red : Colors.orange),
+                                  ),
+                                  child: Text(
+                                    incident['Statut'] ?? 'Nouveau',
+                                    style: TextStyle(
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.bold,
+                                      color: isResolved ? Colors.green : isCritique ? Colors.red : Colors.orange[800],
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(incident['Description'] ?? '', maxLines: 1, overflow: TextOverflow.ellipsis),
+                                if (aiLabel != null)
+                                  Row(
+                                    children: [
+                                      const Icon(Icons.psychology, size: 11, color: Colors.deepPurple),
+                                      const SizedBox(width: 3),
+                                      Text(
+                                        "IA : $aiLabel",
+                                        style: const TextStyle(fontSize: 10, color: Colors.deepPurple),
+                                      ),
+                                    ],
+                                  ),
+                              ],
+                            ),
                             trailing: const Icon(Icons.more_vert),
                           ),
                         );
